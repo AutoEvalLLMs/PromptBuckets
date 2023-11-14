@@ -1,6 +1,6 @@
 # Generator.py is a file that contains the generator class and any helper functions necessary:
 import transformers
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 import os
 import openai
 import torch
@@ -24,6 +24,12 @@ DEFAULT_LLAMA2HF_CONFIG = {
     "max_new_tokens": 100,
     # todo decoding strategy
 }
+MistralConfig = BitsAndBytesConfig(
+    load_in_4bit=True,
+    bnb_4bit_quant_type="nf4",
+    bnb_4bit_compute_dtype=torch.float16,
+)
+
 
 class AbstractConfig(dict):
     """
@@ -124,6 +130,37 @@ class Llama2HFGenerator(DefaultGenerator):
         """
         input_ids = self.tokenizer.encode(input_text, return_tensors="pt")
         output = self.model.generate(input_ids, max_length=self.config.max_new_tokens, do_sample=True) # todo make sure this works
+        return self.tokenizer.decode(output[0], skip_special_tokens=True)
+
+class DefaultGenerator():
+    """
+    Default Class defining the generator for the target language model
+    """
+    def __init__(self) -> None:
+        pass
+
+    def generate(self, input_text, **kwargs):
+        """
+        Generate text using the language model
+        """
+        raise NotImplementedError
+class MistralGenerator(DefaultGenerator):
+    """
+    """
+    def __init__(self, config: MistralConfig) -> None:
+        super().__init__()
+        self.model_name = "ybelkada/Mistral-7B-v0.1-bf16-sharded"
+        self.config = config
+        self.max_tokens = 100
+        self.model = AutoModelForCausalLM.from_pretrained(model_name,quantization_config=self.config)
+        self.model.config.use_cache = False
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+
+    def generate(self, input_text):
+        """
+        """
+        input_ids = self.tokenizer.encode(input_text, return_tensors="pt")
+        output = self.model.generate(input_ids, max_length=self.max_tokens, do_sample=True)
         return self.tokenizer.decode(output[0], skip_special_tokens=True)
 
 # class TargetGeneratorConfig(GenerationConfig):
