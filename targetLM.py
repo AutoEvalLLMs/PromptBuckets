@@ -1,10 +1,16 @@
 # Generator.py is a file that contains the generator class and any helper functions necessary:
 import transformers
+<<<<<<< HEAD
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+=======
+from datatypes import PromptSet
+from transformers import AutoTokenizer, AutoModelForCausalLM
+>>>>>>> 01300bd (comit)
 import os
 import openai
 import torch
 from collections import OrderedDict, defaultdict
+import copy
 
 DEFAULT_TARGET_GENERATOR_CONFIG = {
     "api_model" : False,
@@ -132,6 +138,7 @@ class Llama2HFGenerator(DefaultGenerator):
         output = self.model.generate(input_ids, max_length=self.config.max_new_tokens, do_sample=True) # todo make sure this works
         return self.tokenizer.decode(output[0], skip_special_tokens=True)
 
+<<<<<<< HEAD
 class DefaultGenerator():
     """
     Default Class defining the generator for the target language model
@@ -186,3 +193,18 @@ class MistralGenerator(DefaultGenerator):
 #         self.api_model = api_model 
 #         self.num_generations = kwargs.get('num_generations', 5)
      
+=======
+
+def generate_from_prompt_set(prompt_set: dict, model: DefaultGenerator):
+    """
+    Generates text from a prompt set
+    prompt_set is a {instruction: [{likert_level : prompt}]}
+    """
+    generations = copy.deepcopy(prompt_set)
+    for prompt_list in prompt_set.values():
+        for prompt in prompt_list:
+            # prompt is a likert_level : prompt set
+            for likert_level, prompt_text in prompt.items():
+                generations[likert_level] = model.generate(prompt_text) # overwrite generations
+    return generations
+>>>>>>> 01300bd (comit)
