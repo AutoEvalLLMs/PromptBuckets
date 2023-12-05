@@ -24,11 +24,25 @@ DEFAULT_LLAMA2HF_CONFIG = {
     "max_new_tokens": 100,
     # todo decoding strategy
 }
-MistralConfig = BitsAndBytesConfig(
-    load_in_4bit=True,
-    bnb_4bit_quant_type="nf4",
-    bnb_4bit_compute_dtype=torch.float16,
-)
+# MistralConfig = BitsAndBytesConfig(
+#     load_in_4bit=True,
+#     bnb_4bit_quant_type="nf4",
+#     bnb_4bit_compute_dtype=torch.float16,
+# )
+
+DEFAULT_MISTRAL_CONFIG = {
+    "model" : "mistralai/Mistral-7B-Instruct-v0.1",
+    "tokenizer" : "mistralai/Mistral-7B-Instruct-v0.1",
+    "max_new_tokens": 100,
+    # todo decoding strategy
+}
+
+DEFAULT_LLAMA_CHAT_CONFIG = {
+    "model" : "meta-llama/Llama-2-7b-chat-hf",
+    "tokenizer" : "meta-llama/Llama-2-7b-chat-hf",
+    "temperature" : 0.7,
+    "max_new_tokens" : 100
+}
 
 
 class AbstractConfig(dict):
@@ -37,8 +51,8 @@ class AbstractConfig(dict):
     """
     def __init__(self, **kwargs) -> None:
         super().__init__()
-        self.update(kwargs)
         self.update(self.get_defaults())
+        self.update(kwargs)
 
     def get_defaults(self):
         """
@@ -47,7 +61,10 @@ class AbstractConfig(dict):
         raise NotImplementedError
     
     def __getattr__(self, name):
-        return self[name]
+        if name in self.keys():
+            return self[name]
+        else:
+            return None
 
     def __setattr__(self, name, value):
         self[name] = value
@@ -114,7 +131,7 @@ class Llama2HFConfig(AbstractConfig):
         super().__init__(**kwargs)
     
     def get_defaults(self):
-        return {}
+        return DEFAULT_LLAMA2HF_CONFIG
     
 class Llama2HFGenerator(DefaultGenerator):
     """
@@ -122,39 +139,39 @@ class Llama2HFGenerator(DefaultGenerator):
     def __init__(self, config: Llama2HFConfig) -> None:
         super().__init__()
         self.config = config
-        self.tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-2-7b-hf")
-        self.model = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-2-7b-hf")
+        self.tokenizer = AutoTokenizer.from_pretrained(config.model)
+        self.model = AutoModelForCausalLM.from_pretrained(config.tokenizer, torch_dtype=torch.float16, device_map='cuda')
     
     def generate(self, input_text):
         """
         """
         input_ids = self.tokenizer.encode(input_text, return_tensors="pt")
+        # input_ids.to('cuda')
+        input_ids = input_ids.to('cuda')
         output = self.model.generate(input_ids, max_length=self.config.max_new_tokens, do_sample=True) # todo make sure this works
-        return self.tokenizer.decode(output[0], skip_special_tokens=True)
+        return self.tokenizer.decode(output[0,len(input_ids.flatten()):], skip_special_tokens=True)
 
-class DefaultGenerator():
+class MistralConfig(AbstractConfig):
     """
-    Default Class defining the generator for the target language model
     """
-    def __init__(self) -> None:
-        pass
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+    
+    def get_defaults(self):
+        return DEFAULT_MISTRAL_CONFIG
 
-    def generate(self, input_text, **kwargs):
-        """
-        Generate text using the language model
-        """
-        raise NotImplementedError
 class MistralGenerator(DefaultGenerator):
     """
     """
     def __init__(self, config: MistralConfig) -> None:
         super().__init__()
-        self.model_name = "ybelkada/Mistral-7B-v0.1-bf16-sharded"
         self.config = config
-        self.max_tokens = 100
-        self.model = AutoModelForCausalLM.from_pretrained(model_name,quantization_config=self.config)
+        self.model_name = config.model
+        self.max_tokens = 100 if config.max_tokens is None else config.max_tokens
+        # self.model = AutoModelForCausalLM.from_pretrained(model_name,quantization_config=self.config)
+        self.model = AutoModelForCausalLM.from_pretrained(self.model_name, torch_dtype=torch.float16, device_map='cuda') # use 16bit floats for vram
         self.model.config.use_cache = False
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name, trust_remote_code=True)
 
     def generate(self, input_text):
         """
