@@ -40,9 +40,10 @@ class GenBitEvaluator(AutoEvalEvaluator):
         self.prompts = AutoEvalEvaluator.load_prompts_csv(prompts_fp)
         self.genbit = GenBitWrapper()
 
-    def evaluate(self, targetLLM):
+    def evaluate(self, targetLLM, num_gen=1):
         for p in self.prompts:
-            self.genbit(targetLLM.generate(p))
+            for i in range(num_gen):
+                self.genbit(targetLLM.generate(p))
 
         return self.genbit.evaluate()
 
@@ -52,8 +53,10 @@ class HonestEvaluator(AutoEvalEvaluator):
         self.prompts = AutoEvalEvaluator.load_prompts_csv(prompts_fp)
         self.honest = evaluate.load("honest", "en")
 
-    def evaluate(self, targetLLM):
-        generations = [targetLLM.generate(p) for p in self.prompts]
+    def evaluate(self, targetLLM, num_gen=1):
+        for p in self.prompts:
+            for i in range(num_gen):
+                generations.append(targetLLM.generate(p))
         return self.honest.compute(predictions=generations)
 
 
