@@ -2,3 +2,5 @@ genbit
 transformers
 openai
 torch
+accelerate
+unidecode

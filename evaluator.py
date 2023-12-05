@@ -1,6 +1,8 @@
 from genbit.genbit_metrics import GenBitMetrics
 import csv
 import evaluate
+from tqdm import tqdm
+import json
 
 class AutoEvalEvaluator:
     def __init__(self):
@@ -10,9 +12,18 @@ class AutoEvalEvaluator:
     def load_prompts_csv(prompt_fp):
         with open(prompt_fp, "r") as f:
             ret = [p[-1] for p in csv.reader(f)]
+        return ret
 
     def evaluate():
         raise NotImplementedError()
+
+    def evaluate_from_generations():
+        raise NotImplementedError()
+
+    @staticmethod
+    def to_json(obj, fp):
+        with open("fp", "w") as f:
+            json.dump(obj, f)
 
 
 class GenBitWrapper():
@@ -38,14 +49,27 @@ class GenBitWrapper():
 class GenBitEvaluator(AutoEvalEvaluator):
     def __init__(self, prompts_fp):
         self.prompts = AutoEvalEvaluator.load_prompts_csv(prompts_fp)
-        self.genbit = GenBitWrapper()
 
     def evaluate(self, targetLLM, num_gen=1):
-        for p in self.prompts:
-            for i in range(num_gen):
-                self.genbit(targetLLM.generate(p))
+        generations = {}
+        for p in tqdm(self.prompts):
+            genbit = GenBitWrapper()
+            outputs = [targetLLM.generate(p) for i in range(num_gen)]
+            for t in outputs:
+                genbit(t) # add to genbit
+            
+            generations[p] = (genbit.evaluate(), outputs)
+        return generations
 
-        return self.genbit.evaluate()
+    def evaluate_from_generations(self, prompts, generations):
+        ret = {}
+        for i,p in tqdm(enumerate(prompts)):
+            genbit = GenBitWrapper()
+            for t in generations[i]:
+                genbit(t)
+            ret[p] = (genbit.evaluate(), generations[i])
+
+        return ret
 
 
 class HonestEvaluator(AutoEvalEvaluator):
@@ -54,10 +78,38 @@ class HonestEvaluator(AutoEvalEvaluator):
         self.honest = evaluate.load("honest", "en")
 
     def evaluate(self, targetLLM, num_gen=1):
-        for p in self.prompts:
-            for i in range(num_gen):
-                generations.append(targetLLM.generate(p))
-        return self.honest.compute(predictions=generations)
+        generations = {}
+        for p in tqdm(self.prompts):
+            gens = [targetLLM.generate(p) for i in range(num_gen)]
+            honest = self.honest.compute(predictions=[t.split(' ') for t in gens]) # split by word for honest
+            generations[p] = (honest, gens)
+        return generations
+
+    def evaluate_from_generations(self, prompts, generations):
+        ret = {}
+        for i, p in tqdm(enumerate(prompts)):
+            ret[p] = (self.honest.compute(predictions = [t.split(' ') for t in generations[i]]), generations[i])
+        return ret
 
 
+class RegardEvaluator(AutoEvalEvaluator):
+    def __init__(self, prompts_fp):
+        self.prompts = AutoEvalEvaluator.load_prompts_csv(prompts_fp)
+        self.regard = evaluate.load("regard", module_type="measurement")
+
+    def evaluate(self, targetLLM, num_gen=1):
+        generations = {}
+        for p in tqdm(self.prompts):
+            generations[p] = [targetLLM.generate(p) for i in range(num_gen)]
+        for k,v in generations.items():
+            generations[k] = (self.regard.compute(data=v, aggregation='maximum'), v) # could do some mapping here with regard https://huggingface.co/spaces/evaluate-measurement/regard
+
+        return generations
+
+    def evaluate_from_generations(self, prompts, generations):
+        ret = {}
+        for i,p in tqdm(enumerate(prompts)):
+            ret[p] = (self.regard.compute(data=generations[i], aggregation='maximum'), generations[i])
+
+        return ret
 

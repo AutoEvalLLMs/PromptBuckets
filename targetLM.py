@@ -5,6 +5,7 @@ import os
 import openai
 import torch
 from collections import OrderedDict, defaultdict
+from tqdm import tqdm
 
 DEFAULT_TARGET_GENERATOR_CONFIG = {
     "api_model" : False,
@@ -88,6 +89,12 @@ class DefaultGenerator():
         Generate text using the language model
         """
         raise NotImplementedError
+        
+    def generate_from_prompts(self, prompts, num_gen = 1):
+        ret = []
+        for p in tqdm(prompts):
+            ret.append([self.generate(p) for i in range(num_gen)])
+        return ret
 
 
 class OpenAIGenerationConfig(AbstractConfig):
@@ -148,7 +155,7 @@ class Llama2HFGenerator(DefaultGenerator):
         input_ids = self.tokenizer.encode(input_text, return_tensors="pt")
         # input_ids.to('cuda')
         input_ids = input_ids.to('cuda')
-        output = self.model.generate(input_ids, max_length=self.config.max_new_tokens, do_sample=True) # todo make sure this works
+        output = self.model.generate(input_ids, max_length=self.config.max_new_tokens + len(input_ids.flatten()), do_sample=True) # todo make sure this works
         return self.tokenizer.decode(output[0,len(input_ids.flatten()):], skip_special_tokens=True)
 
 class MistralConfig(AbstractConfig):
@@ -177,7 +184,7 @@ class MistralGenerator(DefaultGenerator):
         """
         """
         input_ids = self.tokenizer.encode(input_text, return_tensors="pt")
-        output = self.model.generate(input_ids, max_length=self.max_tokens, do_sample=True)
+        output = self.model.generate(input_ids, max_length=self.max_tokens + len(input_ids.flatten()), do_sample=True)
         return self.tokenizer.decode(output[0], skip_special_tokens=True)
 
 # class TargetGeneratorConfig(GenerationConfig):
