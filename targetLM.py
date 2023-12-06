@@ -183,9 +183,12 @@ class MistralGenerator(DefaultGenerator):
     def generate(self, input_text):
         """
         """
-        input_ids = self.tokenizer.encode(input_text, return_tensors="pt")
-        output = self.model.generate(input_ids, max_length=self.max_tokens + len(input_ids.flatten()), do_sample=True)
-        return self.tokenizer.decode(output[0], skip_special_tokens=True)
+        input_ids = self.tokenizer(input_text, return_tensors="pt", return_attention_mask=True)
+        input_ids = input_ids.to('cuda')
+        token_len = len(input_ids['input_ids'].flatten())
+        
+        output = self.model.generate(**input_ids, max_length=self.max_tokens + token_len, do_sample=True)
+        return self.tokenizer.decode(output[0, token_len:], skip_special_tokens=True)
 
 # class TargetGeneratorConfig(GenerationConfig):
 #     """
