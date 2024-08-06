@@ -1,5 +1,5 @@
-# primary
-Primary Repo (not sure why I made this an org instead of a repo :|)
+# Prompt Buckets
+Primary Repo 
 
 
 ## November 1st Meeting Task Breakup:
